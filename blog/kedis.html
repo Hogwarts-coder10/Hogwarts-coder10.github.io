@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Building Kedis: How I Built a Redis-Inspired In-Memory Data Store From Scratch · V SS Karthik</title>
+  <meta name="description" content="Exploring storage engines, custom data structures, networking, persistence, concurrency, and the engineering trade-offs behind an in-memory database.">
+  <meta property="og:title" content="Building Kedis: How I Built a Redis-Inspired In-Memory Data Store From Scratch">
+  <meta property="og:description" content="Exploring storage engines, custom data structures, networking, persistence, concurrency, and the engineering trade-offs behind an in-memory database.">
+  <meta property="og:image" content="https://avatars.githubusercontent.com/u/178892370?v=4&s=400">
+  <link rel="icon" href="https://avatars.githubusercontent.com/u/178892370?v=4&s=64">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("theme"); } catch (e) {}
+      if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+
+  <header class="nav">
+    <a class="logo" href="../index.html">&lt;karthik/&gt;</a>
+    <nav>
+      <a href="../index.html#projects">Projects</a>
+      <a href="../index.html#blog">Blog</a>
+      <a href="../index.html#contact">Contact</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Toggle light/dark mode">☀️</button>
+    </nav>
+  </header>
+
+  <main>
+    <article class="article">
+      <a class="back" href="../index.html#blog">← Back to blog</a>
+      <div class="post-meta">
+        <time datetime="2026-10-20">Oct 20, 2026</time><span>·</span><span>21 min read</span>
+      </div>
+      <h1>Building Kedis: How I Built a Redis-Inspired In-Memory Data Store From Scratch</h1>
+      <p class="subtitle">Exploring storage engines, custom data structures, networking, persistence, concurrency, and the engineering trade-offs behind an in-memory database.</p>
+      <div class="tags"><span>Python</span><span>Systems</span><span>Databases</span><span>Asyncio</span></div>
+<p><strong>Repository:</strong> <a href="https://github.com/Hogwarts-coder10/kedis-python">Hogwarts-coder10/kedis-python</a><br />
+<strong>Language:</strong> Python<br />
+<strong>Project type:</strong> In-memory data store and systems engineering project</p>
+<hr />
+<h2>1. Why I Decided to Build Kedis</h2>
+<p>Most developers interact with databases through an API. We send a query, receive a result, and move on. The database handles everything else: data structures, memory allocation, persistence, networking, concurrency, and recovery.</p>
+<p>But what actually happens between sending a command and getting a response?</p>
+<p>How does a database organize its data? What happens when two clients modify the same key? How does an in-memory database survive a restart? And what makes a seemingly simple key-value store difficult to implement correctly?</p>
+<p>I wanted to understand these questions beyond their theoretical explanations.</p>
+<p>That led me to build <strong>Kedis</strong>, a Redis-inspired in-memory data store implemented from scratch in Python.</p>
+<p>The goal wasn't simply to recreate a collection of Redis commands. I wanted to explore the architectural decisions behind systems that developers often treat as black boxes.</p>
+<p>I started with the fundamentals of key-value storage and expanded the project to explore multiple data structures, a custom wire protocol, TCP networking, persistence, transactions, replication, and performance under concurrent workloads.</p>
+<p>As the project grew, the interesting problems stopped being about implementing individual commands. They became questions about how different subsystems interact and what happens when their requirements conflict.</p>
+<p>That is what made Kedis an interesting engineering project for me.</p>
+<p><strong>The objective was simple: build a system that would teach me how systems are actually put together.</strong></p>
+<h2>2. Starting With the Storage Engine</h2>
+<p>At its core, an in-memory data store needs to associate keys with values and support operations on that data.</p>
+<p>The most straightforward starting point is a key-value interface:</p>
+<pre><code class="language-text">SET language Python
+GET language
+</code></pre>
+<p>Conceptually, <code>SET</code> inserts or updates a value, while <code>GET</code> retrieves it.</p>
+<p>A minimal implementation could use a Python dictionary. That would provide a working starting point, but it wouldn't teach me much about the different data structures that power database operations.</p>
+<p>I wanted Kedis to support multiple kinds of data and expose the operations appropriate to each type.</p>
+<p>The engine eventually supported:</p>
+<ul>
+<li><strong>Strings</strong> for ordinary key-value storage.</li>
+<li><strong>Lists</strong> for ordered collections.</li>
+<li><strong>Sets</strong> for collections of unique members.</li>
+<li><strong>Hashes</strong> for field-value mappings.</li>
+<li><strong>Sorted sets</strong> for ordered members associated with scores.</li>
+<li><strong>Streams</strong> for append-only event records and consumer-group workflows.</li>
+</ul>
+<p>These aren't merely different command names. Each data type has its own semantics and performance considerations.</p>
+<p>For example, a list supports operations such as <code>LPUSH</code>, <code>RPUSH</code>, and <code>LPOP</code>. A set supports operations such as <code>SADD</code> and <code>SMEMBERS</code>. A hash exposes field-oriented operations such as <code>HSET</code> and <code>HGET</code>.</p>
+<p>A sorted set introduces another problem: how do you efficiently maintain an ordered collection while allowing insertion, lookup, and positional queries?</p>
+<p>That question led to one of my favourite parts of the project.</p>
+<h2>3. Implementing a Skip List for Sorted Sets</h2>
+<p>I implemented a custom skip list for Kedis sorted sets, inspired by the approach used in Redis.</p>
+<p>A skip list is a probabilistic data structure that maintains an ordered sequence using multiple levels of forward pointers.</p>
+<p>Imagine a sorted linked list containing thousands of elements. Finding a particular element by walking through the list could require examining a large fraction of the collection.</p>
+<p>A skip list adds express lanes.</p>
+<p>The bottom level contains the elements in sorted order. Higher levels contain progressively sparser forward links, allowing a search to skip over large portions of the collection before descending to a more detailed level.</p>
+<p>Under its usual randomized-level assumptions, a skip list provides expected <code>O(log N)</code> search and insertion performance.</p>
+<p>That makes it useful for maintaining ordered data without implementing a more complicated self-balancing tree.</p>
+<h3>Why ordinary skip-list pointers weren't enough</h3>
+<p>Kedis also uses <strong>rank-aware span tracking</strong>.</p>
+<p>A conventional skip list helps locate an element by its ordering. However, operations that need to determine an element's position or retrieve a range by rank require additional information.</p>
+<p>Spans track how many bottom-level elements are crossed by a forward link. By maintaining this information across levels, the implementation can support positional queries more efficiently.</p>
+<p>For example:</p>
+<pre><code class="language-text">ZADD leaderboard 100 karthik
+ZRANGE leaderboard
+</code></pre>
+<p>The first operation associates a score with a member. The second retrieves members in sorted order according to the implementation's command semantics.</p>
+<p>The interesting part isn't the command itself. It's the structure underneath it.</p>
+<p>I had to think about how insertion affects forward links, how spans change when nodes are added, and how the structure maintains consistency as elements are updated.</p>
+<p>This is the kind of implementation detail that is easy to overlook when using a library but becomes very real when building the data structure yourself.</p>
+<p>The skip list also gave me an opportunity to experiment with optimizations and benchmark them rather than assuming that a theoretically efficient algorithm would automatically be fast in Python.</p>
+<p>The broader lesson was that choosing an algorithm is only the beginning. Its implementation, memory layout, and interaction with the surrounding system all matter.</p>
+<h2>4. Designing the Architecture</h2>
+<p>As Kedis grew, I needed a way to keep its responsibilities separate.</p>
+<p>I organized the system around a pipeline that moves a request from the client to the storage engine and then returns a response.</p>
+<p>The high-level architecture is:</p>
+<pre><code class="language-text">                  Client
+                    |
+                    v
+              Asyncio Server
+                    |
+                    v
+                KESP Parser
+                    |
+                    v
+               Command Router
+                    |
+                    v
+               Storage Engine
+               /            \
+              v              v
+        Persistence       Replication
+            (AOF)          (Master
+                             to
+                           Replica)
+</code></pre>
+<p>Each component has a distinct responsibility.</p>
+<p>The networking layer handles client connections. The parser translates incoming bytes into structured requests. The command router dispatches operations. The storage engine executes them against the appropriate data structures.</p>
+<p>Persistence and replication integrate with the engine to handle concerns beyond ordinary in-memory reads and writes.</p>
+<p>This separation was important because I didn't want protocol parsing, command execution, and data storage to become one tightly coupled piece of code.</p>
+<p>A dedicated parser can be tested independently. The storage engine can be exercised without requiring a live network connection. Networking changes can be explored without having to redesign every data structure.</p>
+<p>It also makes the project easier to extend.</p>
+<p>For example, adding a command should primarily involve implementing its semantics and connecting it to the command-dispatch mechanism, rather than rebuilding the entire request-handling pipeline.</p>
+<p>The architecture is intentionally modular because Kedis is also an environment for experimenting with alternative implementations.</p>
+<h2>5. Building KESP: My Own Wire Protocol</h2>
+<p>One of the important design decisions in Kedis was implementing a custom wire protocol called <strong>KESP — Kedis Serialization Protocol</strong>.</p>
+<p>Redis uses RESP, its own serialization protocol, for communication between clients and the server. I decided not to adopt RESP as the protocol for Kedis.</p>
+<p>Instead, Kedis implements KESP with explicit byte-length framing.</p>
+<p>Why does framing matter?</p>
+<p>TCP provides a reliable, ordered byte stream. It does not preserve application-level message boundaries.</p>
+<p>Suppose a client sends a command over a socket. A server might receive the bytes in one read, several reads, or alongside bytes from a subsequent command.</p>
+<p>A call to <code>recv()</code> does not guarantee that the returned bytes correspond to exactly one complete request.</p>
+<p>A naive server that assumes one socket read equals one command can therefore encounter incomplete messages or incorrectly grouped requests.</p>
+<p>Explicit length-prefix framing provides a way to determine how many bytes belong to a message.</p>
+<p>Conceptually, the receiver can:</p>
+<ol>
+<li>Read enough bytes to determine the message length.</li>
+<li>Determine how many payload bytes are expected.</li>
+<li>Read until the complete payload has arrived.</li>
+<li>Decode the message and pass the resulting request to the command router.</li>
+</ol>
+<p>The exact framing rules must be defined by the protocol, including how lengths are represented and how invalid or oversized frames are handled.</p>
+<p>KESP's encoder and decoder live in a dedicated parser module rather than being embedded in the networking implementation.</p>
+<p>That separation matters. A protocol is an interface between independently operating components, not just a convenient way to turn Python objects into bytes.</p>
+<p>It must define message boundaries clearly and behave predictably when data arrives in inconvenient chunks.</p>
+<p>Building KESP taught me to think about the network boundary explicitly. Once a system communicates through sockets, it can no longer rely on the assumptions that are convenient inside a single process.</p>
+<h2>6. Moving to Asyncio Networking</h2>
+<p>Kedis originally used a threaded networking implementation. I benchmarked that design and eventually moved the networking layer to <code>asyncio</code>.</p>
+<p>This was not a decision based solely on the popularity of asynchronous programming. It came from investigating the behaviour of the system under increasing concurrency.</p>
+<h3>The original threaded implementation</h3>
+<p>Threads provide a relatively intuitive way to handle concurrent client connections. Multiple threads can wait for network activity independently, and the operating system schedules them as they become runnable.</p>
+<p>However, Python's Global Interpreter Lock (GIL) affects how Python bytecode executes in conventional CPython builds.</p>
+<p>Kedis also used a global mutex to serialize access to shared state in its original core routing engine.</p>
+<p>That mutex protected the shared state, but it meant that concurrent operations could contend for the same critical section.</p>
+<p>These constraints didn't make threading useless. They meant that the design had a concurrency ceiling worth measuring.</p>
+<h3>What the benchmarks showed</h3>
+<p>The repository documents the following throughput results for the original threaded implementation:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th style="text-align: right;">Active threads</th>
+<th style="text-align: right;">Throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">13,898 requests/sec</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">15,631 requests/sec</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">18,390 requests/sec</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">21,492 requests/sec</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td style="text-align: right;">13,984 requests/sec</td>
+</tr>
+<tr>
+<td style="text-align: right;">50</td>
+<td style="text-align: right;">10,977 requests/sec</td>
+</tr>
+</tbody>
+</table></div>
+<p>The results show a clear pattern.</p>
+<p>Throughput increased as the number of threads grew from one to ten. Beyond that point, performance declined.</p>
+<p>The peak recorded result was approximately <strong>21,492 requests per second at ten threads</strong>. At fifty threads, throughput fell to approximately 10,977 requests per second.</p>
+<p>This is a useful example of why concurrency should be measured rather than assumed to improve performance.</p>
+<p>Adding threads can help overlap waiting on network I/O. But more threads also introduce scheduling overhead, lock contention, and additional coordination.</p>
+<p>The GIL and global mutex were identified in the project documentation as important contributors to the observed limitations.</p>
+<p>No data corruption was observed in the documented stress tests up to fifty threads. That is useful evidence about those particular tests, although it is not a proof of correctness under every possible workload.</p>
+<h3>Why asyncio?</h3>
+<p>The networking layer now uses <code>asyncio</code>, allowing many client connections to be handled through an event loop rather than requiring a dedicated operating-system thread for every connection.</p>
+<p>This is particularly relevant for workloads where connections spend a significant amount of time waiting for network input or output.</p>
+<p>Asynchronous networking can reduce the overhead associated with managing many waiting connections. It does not, however, automatically make CPU-bound Python code parallel or eliminate contention in shared state.</p>
+<p>That distinction matters.</p>
+<p>Moving to asyncio changes the concurrency model of the networking layer. It doesn't magically make every operation faster, and the performance characteristics still depend on the workload and the implementation.</p>
+<p>The original threaded measurements explain the motivation for the transition. They should not be interpreted as a direct performance comparison between the old and new implementations.</p>
+<p>For me, this was one of the most valuable lessons from Kedis: <strong>a benchmark is not just a number to put in a README. It is evidence that helps guide an engineering decision.</strong></p>
+<h2>7. Making an In-Memory Store Persistent</h2>
+<p>An in-memory database is attractive partly because memory operations can be fast. But memory is volatile.</p>
+<p>If the process exits, its in-memory state disappears unless the system has a mechanism to recover that state.</p>
+<p>Kedis implements persistence through an append-only file, or AOF.</p>
+<p>The general idea is to record write operations in a log so that the system can reconstruct its state during startup.</p>
+<p>Instead of relying exclusively on the current contents of memory, the engine can use its persisted operation history to recover data after a restart.</p>
+<p>Kedis documents support for durable write logging, automatic startup recovery, and AOF compaction.</p>
+<p>Compaction is important because an append-only log can grow as operations accumulate. Rewriting or compacting the log helps manage its size and the amount of historical data that must be retained.</p>
+<h3>The durability-throughput trade-off</h3>
+<p>The AOF implementation exposes different synchronization policies. Two documented configurations are <code>appendfsync always</code> and <code>appendfsync everysec</code>.</p>
+<p>The repository reports these benchmark results:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>AOF configuration</th>
+<th style="text-align: right;">Reported throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>appendfsync always</code></td>
+<td style="text-align: right;">~1,081 requests/sec</td>
+</tr>
+<tr>
+<td><code>appendfsync everysec</code></td>
+<td style="text-align: right;">~13,898 requests/sec</td>
+</tr>
+</tbody>
+</table></div>
+<p>These measurements were obtained on localhost with a single thread and a workload of 100,000 total operations: 50,000 <code>SET</code> operations and 50,000 <code>GET</code> operations.</p>
+<p>The difference is substantial.</p>
+<p>With <code>appendfsync always</code>, the system prioritizes durability by synchronizing writes to disk after each write. This can impose significant latency and reduce throughput.</p>
+<p>With <code>appendfsync everysec</code>, synchronization is batched more aggressively, improving throughput while accepting a larger potential window of data loss during a crash.</p>
+<p>The repository describes that window as up to approximately one second of writes.</p>
+<p>Neither setting is universally better. They represent different trade-offs between durability requirements and performance.</p>
+<p>A cache that can reconstruct its contents may tolerate a different risk profile from a system storing critical state. The correct choice depends on what the application expects from persistence.</p>
+<p>There is also an important distinction between writing data to a file and guaranteeing that the data has reached durable storage. Buffering, synchronization, operating-system behaviour, and hardware all affect the final result.</p>
+<p>Kedis is an educational systems project, and its documented limitations include unbuffered AOF writes and simplified memory accounting. The persistence layer remains an area for improvement.</p>
+<p>Implementing AOF made one thing particularly clear to me: adding persistence isn't just a matter of saving a dictionary. It introduces a new set of failure modes and performance trade-offs.</p>
+<h2>8. Transactions and Optimistic Locking</h2>
+<p>A database must also handle operations that involve multiple commands.</p>
+<p>Kedis supports transactional execution through commands such as <code>MULTI</code> and <code>EXEC</code>.</p>
+<p>For example:</p>
+<pre><code class="language-text">MULTI
+SET account_a 100
+SET account_b 200
+EXEC
+</code></pre>
+<p>This illustrates a group of operations submitted for transactional execution.</p>
+<p>The important engineering question is how the system handles a transaction when other clients may be modifying shared state.</p>
+<p>Kedis also supports optimistic locking through <code>WATCH</code> and <code>UNWATCH</code>.</p>
+<p>Consider a client that reads an account balance, calculates a new value, and then attempts to update it. If another client changes the same key between the initial observation and the attempted commit, the first client's calculation may be based on stale state.</p>
+<p>Optimistic locking provides a way to detect this situation.</p>
+<p>Conceptually, a client watches a key, prepares a transaction, and attempts to execute it. If the watched key changes before the transaction commits, the transaction is aborted rather than proceeding as though the original state were still valid.</p>
+<p>This is particularly relevant to read-modify-write operations, where a stale read can otherwise lead to lost updates.</p>
+<p>Transactions are not simply a feature that makes a command-line interface more convenient. They require careful reasoning about state changes, isolation, and what clients are allowed to observe.</p>
+<p>The exact guarantees depend on the implementation, so it is important not to assume that supporting <code>MULTI</code> and <code>EXEC</code> automatically provides every isolation property of a production relational database.</p>
+<h2>9. Adding Streams and Consumer Groups</h2>
+<p>As Kedis evolved, I expanded it beyond conventional key-value operations to include streams and consumer groups.</p>
+<p>Streams represent append-only event records. They are useful when the data model is closer to an event log than a single mutable value.</p>
+<p>Kedis documents operations such as:</p>
+<pre><code class="language-text">XADD orders * item book qty 2
+XREAD BLOCK 5000 STREAMS orders $
+</code></pre>
+<p>The first command appends an event to a stream. The second illustrates reading from a stream with a blocking option.</p>
+<p>Consumer groups introduce another layer of complexity. Instead of every consumer independently processing the same sequence, a group can distribute stream entries across workers.</p>
+<p>Kedis documents group creation, group reads, pending-entry tracking, and acknowledgements:</p>
+<pre><code class="language-text">XGROUP CREATE orders shipping 0
+XREADGROUP GROUP shipping worker1 COUNT 10 STREAMS orders &gt;
+XPENDING orders shipping
+XACK orders shipping 1718000000000-0
+</code></pre>
+<p>The underlying concepts are more involved than ordinary <code>GET</code> and <code>SET</code> operations.</p>
+<p>The system must track stream entries and identifiers, manage pending work, and record acknowledgements. Consumers need a way to distinguish work that has been delivered from work that has been acknowledged.</p>
+<p>The project also documents persistence and replication support for streams, including preservation of stream IDs and consumer-group state.</p>
+<p>This made streams a useful extension of the original storage-engine idea. They brought more stateful workflows into the same architecture and created additional requirements for testing, persistence, and replication.</p>
+<p>The current implementation does not claim complete compatibility with every Redis Streams feature. For example, the README lists <code>XCLAIM</code> and <code>XAUTOCLAIM</code> as missing.</p>
+<p>That limitation is worth documenting honestly. A useful systems project can explore an architectural concept without implementing every feature of the production system that inspired it.</p>
+<h2>10. Replication: From One Process to Multiple Nodes</h2>
+<p>An in-memory store running on one machine is a useful starting point, but replication introduces a different class of problems.</p>
+<p>Kedis supports master-replica replication.</p>
+<p>The documented workflow involves a replica connecting to a master, performing a <code>SYNC</code> handshake to receive the initial dataset, and receiving subsequent writes from the master.</p>
+<p>Replicas are read-only, and direct writes to a replica are rejected.</p>
+<p>At a high level, the architecture looks like this:</p>
+<pre><code class="language-text">              Client writes
+                    |
+                    v
+                Kedis Master
+                    |
+           Initial sync + updates
+                    |
+             +------+------+
+             |             |
+             v             v
+         Replica A      Replica B
+         Read-only      Read-only
+</code></pre>
+<p>The diagram illustrates the documented master-to-replica relationship rather than a complete description of every internal synchronization detail.</p>
+<p>Replication raises questions that do not exist in a purely local store.</p>
+<p>How does a new replica obtain the existing dataset? How does it receive subsequent writes? What happens if the connection breaks? How should the replica behave while it is catching up?</p>
+<p>A correct replication design must consider the ordering and completeness of state transfer, not merely the act of sending commands across a socket.</p>
+<p>Kedis provides an environment for exploring these issues while keeping the implementation manageable.</p>
+<p>It is not intended to provide all the fault-tolerance and recovery guarantees of a production distributed database. That distinction is important: supporting replication is not the same as guaranteeing strong consistency or uninterrupted availability under every failure scenario.</p>
+<p>Still, implementing the feature helped broaden the project from a local data structure exercise into a more complete exploration of backend architecture.</p>
+<h2>11. Memory Management and Key Expiration</h2>
+<p>Another part of the project concerns the lifecycle of stored data.</p>
+<p>Kedis supports key expiration through commands such as:</p>
+<pre><code class="language-text">EXPIRE session 60
+TTL session
+</code></pre>
+<p>Expiration allows a key to become invalid after a specified period. This is useful for temporary values such as sessions, short-lived cache entries, and other data that should not remain indefinitely.</p>
+<p>The project also includes LRU-based eviction support.</p>
+<p>LRU stands for <em>Least Recently Used</em>. The idea is to track key usage and identify entries that have not been accessed recently.</p>
+<p>In a memory-constrained system, this policy can help decide which entries to remove when space is needed.</p>
+<p>However, tracking usage and enforcing a memory ceiling are separate capabilities.</p>
+<p>Kedis's documented limitations explicitly state that LRU tracking is not yet tied to a hard memory limit. Its memory accounting is also simplified.</p>
+<p>That distinction matters because an eviction policy cannot, by itself, guarantee that a process stays within a particular memory budget.</p>
+<p>Building these features encouraged me to think about memory as a resource that the engine must manage deliberately, rather than treating the Python runtime as an invisible implementation detail.</p>
+<h2>12. Testing the System</h2>
+<p>A systems project becomes much more interesting when its components must work together.</p>
+<p>Testing an individual command is useful, but it is not enough to establish that the complete system behaves correctly.</p>
+<p>A command may work against the storage engine but fail when requests are split across TCP reads. A write may succeed in memory but fail to survive a restart. A data structure may behave correctly in isolation but expose a bug when several components interact.</p>
+<p>Kedis includes automated tests covering command execution, data structures, persistence recovery, expiration, streams, and consumer-group workflows, including tests that exercise live TCP sessions.</p>
+<p>The repository also documents a dedicated testing structure and notes that coverage is still being expanded.</p>
+<p>For me, this is an important part of building systems: testing needs to follow the architecture.</p>
+<p>The storage engine needs tests for data-structure invariants. The protocol needs tests for encoding and decoding. The persistence layer needs recovery tests. Networking needs tests that exercise real connections. Stateful features such as consumer groups need tests that cover transitions between pending and acknowledged work.</p>
+<p>No finite test suite proves that a system is bug-free. But carefully chosen tests make it much easier to detect regressions and reason about changes.</p>
+<p>They also give future contributors a clearer way to verify that modifications have not broken existing behaviour.</p>
+<h2>13. What the Benchmarks Actually Tell Us</h2>
+<p>I want to be careful about how I present performance results.</p>
+<p>The AOF measurements and the original threading measurements tell us something useful about Kedis, but they answer different questions.</p>
+<p>The AOF benchmark compares two persistence synchronization configurations under a documented workload. The threading benchmark examines how the original threaded implementation behaved as the number of threads increased.</p>
+<p>They should not be combined into one overall performance claim.</p>
+<p>For reference, the documented results are:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Experiment</th>
+<th>Configuration</th>
+<th style="text-align: right;">Reported throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AOF durability</td>
+<td><code>appendfsync always</code></td>
+<td style="text-align: right;">~1,081 req/sec</td>
+</tr>
+<tr>
+<td>AOF durability</td>
+<td><code>appendfsync everysec</code></td>
+<td style="text-align: right;">~13,898 req/sec</td>
+</tr>
+<tr>
+<td>Original threaded server</td>
+<td>1 thread</td>
+<td style="text-align: right;">13,898 req/sec</td>
+</tr>
+<tr>
+<td>Original threaded server</td>
+<td>10 threads</td>
+<td style="text-align: right;">21,492 req/sec</td>
+</tr>
+<tr>
+<td>Original threaded server</td>
+<td>50 threads</td>
+<td style="text-align: right;">10,977 req/sec</td>
+</tr>
+</tbody>
+</table></div>
+<p>These are measurements from the project's own benchmark documentation. They are not independently reproduced results, and the different experiments should not be treated as directly comparable.</p>
+<p>A useful benchmark report should ideally include the hardware, software environment, exact workload, client configuration, number of operations, and the methodology used to collect results.</p>
+<p>It should also distinguish throughput from latency. A system can achieve high aggregate throughput while still delivering poor tail latency for individual requests.</p>
+<p>Likewise, a benchmark on localhost says something different from a benchmark across a real network.</p>
+<p>I see benchmarking as an iterative process: measure a workload, identify a likely bottleneck, change one part of the implementation, and measure again under comparable conditions.</p>
+<p>The point is not to produce the largest number possible. It is to understand why the system behaves the way it does.</p>
+<h2>14. What I Would Improve Next</h2>
+<p>Kedis is an educational systems project, not a production-ready database.</p>
+<p>The repository already identifies several areas for future work, including buffered AOF persistence, improved observability, memory-based eviction, better benchmark tooling, and additional persistence optimizations.</p>
+<p>These are meaningful engineering problems rather than cosmetic additions.</p>
+<p>Buffered persistence, for example, could reduce the overhead associated with writing and synchronizing individual operations, but it would also require careful reasoning about flushing, failure recovery, and durability guarantees.</p>
+<p>Improved observability could make it easier to understand how the engine behaves under different workloads, particularly when investigating latency, persistence overhead, and contention.</p>
+<p>Benchmark tooling could help make performance experiments more reproducible and make it easier to compare different versions of the implementation.</p>
+<p>Beyond these documented priorities, I would also want to continue investigating protocol edge cases, failure handling, transaction semantics, and replication behaviour under disconnects and restarts.</p>
+<p>The important thing is to approach these improvements systematically. A feature that works under normal conditions may behave very differently when the process crashes, the network disconnects, or multiple clients modify the same state.</p>
+<p>That is where much of the real systems engineering work begins.</p>
+<h2>15. What Building Kedis Taught Me</h2>
+<p>Building Kedis changed how I think about backend systems.</p>
+<p>A database is not just a dictionary with a socket attached to it. It is a collection of interacting subsystems, each with its own correctness requirements and performance trade-offs.</p>
+<p>Implementing the skip list taught me to reason about data structures beyond their asymptotic complexity.</p>
+<p>Building KESP made me think about framing, byte streams, and the boundary between a client and a server.</p>
+<p>Implementing AOF persistence exposed the relationship between durability and throughput.</p>
+<p>Benchmarking the threaded implementation showed why adding concurrency does not necessarily improve performance indefinitely.</p>
+<p>Transactions and replication introduced questions about state changes, coordination, and failure handling that do not appear in a simple local key-value store.</p>
+<p>Streams and consumer groups expanded the problem further by introducing event history and stateful processing workflows.</p>
+<p>Most importantly, these features forced me to think about how individual design decisions affect the rest of the system.</p>
+<p>The choice of a network model affects how connections are handled. The persistence strategy affects write latency. The data structure affects the complexity of individual operations. The protocol determines how messages are represented and parsed. The testing strategy determines how confidently these components can be changed.</p>
+<p>None of these decisions exists in isolation.</p>
+<p>I also learned that implementing a feature and implementing it robustly are two different milestones. A working implementation is a valuable start, but it still needs testing, failure analysis, performance evaluation, and clear documentation.</p>
+<p>That is one of the reasons I wanted to build Kedis instead of stopping at a theoretical understanding of databases.</p>
+<h2>Conclusion</h2>
+<p>Kedis started as a way to understand in-memory data stores and evolved into a broader exploration of systems engineering.</p>
+<p>It now brings together a custom storage engine, five conventional data types plus streams, a skip-list implementation for sorted sets, a custom binary-safe wire protocol, asynchronous networking, append-only persistence, transactions, expiration, eviction tracking, replication, and automated tests.</p>
+<p>There is still plenty of work to do. The project has known limitations, and I do not consider it a replacement for production databases.</p>
+<p>But that was never the only point.</p>
+<p>I wanted to understand what happens beneath the interfaces we use every day, and building Kedis gave me a way to investigate those questions through implementation, measurement, and iteration.</p>
+<p>The most valuable outcome wasn't a particular benchmark number or a long list of supported commands. It was learning to look at a backend system as a collection of interacting components whose behaviour must be understood, measured, and tested.</p>
+<p>And that is what I want to keep exploring as I work on more systems projects.</p>
+<p><strong>Kedis was built to understand systems, not just use them.</strong></p>
+<hr />
+<h3>Explore the project</h3>
+<ul>
+<li><strong>Source code:</strong> <a href="https://github.com/Hogwarts-coder10/kedis-python">github.com/Hogwarts-coder10/kedis-python</a></li>
+<li><strong>Installation:</strong> <a href="https://pypi.org/project/kedis-python/">kedis-python on PyPI</a></li>
+<li><strong>Contributions and feedback:</strong> Issues and discussions are welcome on GitHub.</li>
+</ul>
+<p>If you're interested in data structures, database internals, networking, or backend systems, I'd love for you to explore the project and share your thoughts.</p>
+    </article>
+  </main>
+
+  <footer>
+    <p>© <span id="year"></span> V SS Karthik · Built with plain HTML, CSS and JS</p>
+  </footer>
+
+  <script src="../script.js"></script>
+</body>
+</html>
