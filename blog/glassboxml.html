@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why I Built GlassBoxML? · V SS Karthik</title>
+  <meta name="description" content="Why I rebuilt classic ML algorithms on plain NumPy, and what the project taught me about software engineering.">
+  <meta property="og:title" content="Why I Built GlassBoxML?">
+  <meta property="og:description" content="The best way to understand an abstraction is to remove it.">
+  <meta property="og:image" content="https://avatars.githubusercontent.com/u/178892370?v=4&s=400">
+  <link rel="icon" href="https://avatars.githubusercontent.com/u/178892370?v=4&s=64">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../style.css">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("theme"); } catch (e) {}
+      if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+
+  <header class="nav">
+    <a class="logo" href="../index.html">&lt;karthik/&gt;</a>
+    <nav>
+      <a href="../index.html#projects">Projects</a>
+      <a href="../index.html#blog">Blog</a>
+      <a href="../index.html#contact">Contact</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Toggle light/dark mode">☀️</button>
+    </nav>
+  </header>
+
+  <main>
+    <article class="article">
+      <a class="back" href="../index.html#blog">← Back to blog</a>
+      <div class="post-meta">
+        <time datetime="2026-10-05">Oct 5, 2026</time><span>·</span><span>5 min read</span>
+      </div>
+      <h1>Why I Built GlassBoxML?</h1>
+      <div class="tags"><span>Python</span><span>Machine Learning</span><span>NumPy</span><span>Software Engineering</span></div>
+
+      <p>I didn't plan on making a machine learning library.</p>
+      <p>I was just wondering what was going on behind <code>model.fit()</code>.</p>
+      <p>With a library like scikit-learn, being a machine learning hero can feel almost too easy:</p>
+      <pre><code>model.fit(X, y)
+predictions = model.predict(X_test)</code></pre>
+      <p>A couple of lines and you're done.</p>
+      <p>But at some point, I started wondering:</p>
+      <ul>
+        <li>What is actually happening inside <code>fit()</code>?</li>
+        <li>How does gradient descent update the weights?</li>
+        <li>How does a decision tree decide where to split?</li>
+        <li>How does logistic regression actually learn?</li>
+        <li>What does an SVM optimize?</li>
+      </ul>
+      <p>I can understand the math in a textbook. I can also use the implementations available in libraries.</p>
+      <p>But I wanted to connect the two.</p>
+      <p>So I decided to build my own. And that became GlassBoxML.</p>
+
+      <h2>The idea</h2>
+      <p>The main language for developing GlassBoxML is Python, with NumPy at the core for numerical operations.</p>
+      <p>The aim was not to build a rival to scikit-learn. There was no reason to “reinvent the wheel” and compete with a highly mature library. The goal was much simpler:</p>
+      <blockquote>For me to take the algorithms I was learning and implement them myself.</blockquote>
+      <p>I wished to be able to look at the code and understand precisely what was occurring. No hidden training pipeline. No mysterious abstraction. Just the mathematics translated into code.</p>
+      <p>Hence the name: GlassBoxML. I wanted visibility, not a black box.</p>
+
+      <h2>Starting with the fundamentals</h2>
+      <p>First, I used the algorithms I knew. Linear regression was one of the first.</p>
+      <p>On paper, gradient descent is straightforward:</p>
+      <pre><code>w ← w − η∇L(w)</code></pre>
+      <p>In simple terms, we take the current weights, look at how the loss changes, and move the weights in the direction that reduces that loss.</p>
+      <p>Here's the problem: once you write the equation, you have to resolve all the issues a library usually tries to disguise.</p>
+      <ul>
+        <li>What shape should the matrices have?</li>
+        <li>How should the gradients be calculated?</li>
+        <li>And if we set the learning rate too high?</li>
+        <li>What happens when the inputs aren't scaled?</li>
+        <li>What do you do if your model gets bad input?</li>
+      </ul>
+      <p>The equation is only the beginning. Converting it into robust code is an entirely different story.</p>
+
+      <h2>Growing the library</h2>
+      <p>For the software that worked, I continued adding new algorithms. Eventually, GlassBoxML included implementations such as:</p>
+      <div class="chips inline">
+        <span>Linear Regression</span><span>Logistic Regression</span><span>KNN</span><span>Decision Trees</span><span>Random Forests</span><span>SVM</span><span>AdaBoost</span><span>Gradient Boosting</span><span>PCA</span><span>LDA</span>
+      </div>
+      <p>I've also developed the supporting functions to support them, such as:</p>
+      <ul>
+        <li>Standardization and scaling</li>
+        <li>Train/test splitting</li>
+        <li>Metrics</li>
+        <li>Learning curves</li>
+        <li>Hyperparameter search</li>
+        <li>Sparse Random Projection</li>
+        <li>Fairness analysis</li>
+      </ul>
+      <p>By this point, it wasn't entirely a “library” yet, but it wasn't just implementation either. And that was a totally different kettle of fish.</p>
+
+      <h2>The part I didn't expect</h2>
+      <p>The algorithms weren't always the hardest part. Software engineering was.</p>
+      <p>Implementing a decision tree is one thing. Another is having an API that will make you hate your own decision tree six months down the road.</p>
+      <p>I had to think about:</p>
+      <ul>
+        <li>API design</li>
+        <li>Input validation</li>
+        <li>Numerical stability</li>
+        <li>Reusable abstractions</li>
+        <li>Testing</li>
+        <li>Packaging</li>
+        <li>Documentation</li>
+        <li>Edge cases</li>
+        <li>Performance</li>
+      </ul>
+      <p>That was the biggest learning from the project.</p>
+      <p>Good software is not necessarily writing mathematically correct code. Now it's your job to connect the dots: you have to get the algorithm off the page and into something that someone else could actually use.</p>
+
+      <h2>Why NumPy?</h2>
+      <p>I deliberately chose NumPy as the foundation. I wanted to not be far from the mathematics.</p>
+      <p>If I used a framework that does automatic differentiation for me, with most of the machinery hidden away, I would probably end up knowing the framework instead of knowing how these algorithms really worked. The calculations themselves were more transparent when using NumPy.</p>
+      <p>Take, for example, the traditional training loop for a model:</p>
+      <pre><code>input -&gt; prediction -&gt; loss -&gt; gradient -&gt; parameter update -&gt; repeat</code></pre>
+      <p>I always like to see that process come out of fairly simple array manipulation.</p>
+
+      <h2>Testing the thing</h2>
+      <p>I couldn't keep trying random examples on the growing project and hope everything was okay. I needed tests. So I packaged the models and utilities together into a test suite.</p>
+      <p>This was another useful shift in perspective. Just because an implementation works on one dataset doesn't mean it is correct. You have to think about:</p>
+      <ul>
+        <li>Empty inputs</li>
+        <li>Incorrect dimensions</li>
+        <li>Numerical edge cases</li>
+        <li>Different data distributions</li>
+        <li>Degenerate cases</li>
+        <li>Regression against previous bugs</li>
+      </ul>
+      <p>This definitely gave me a much better understanding of the engineering that goes into well-developed ML libraries.</p>
+
+      <h2>What GlassBoxML taught me</h2>
+      <p>The most important thing I learned wasn't an algorithm.</p>
+      <p>A textbook can give you an equation. But turning that equation into a library means making hundreds of small decisions. You'll have to deal with data structures, shapes, numerical accuracy, APIs, validation, errors, testing, and performance.</p>
+      <p>That's where much of the interesting engineering takes place.</p>
+
+      <h2>Why build another ML library?</h2>
+      <p>This is probably the obvious question. Why build something that already exists?</p>
+      <p>The goal was never to replace scikit-learn. I created GlassBoxML to understand what libraries like it were doing.</p>
+      <p>And in a twist of irony, after I'd made my own implementations I was left with more admiration for the libraries I was attempting to learn. As you write the simplified version on your own you begin to realize everything the mature library has already solved. You start to see the abstractions rather than just the black boxes.</p>
+      <p>If you want to try it yourself, create a virtual environment and install GlassBoxML directly from PyPI:</p>
+      <pre><code>pip install glassboxml</code></pre>
+      <p>Give it a spin, inspect the implementations, and see what happens under the hood.</p>
+
+      <h2>Source code &amp; community</h2>
+      <p>GlassBoxML is 100% open source under the MIT License. See the full implementation, custom vectorized routines and diagnostic benchmarks on GitHub:</p>
+      <ul>
+        <li>GitHub repository: <a href="https://github.com/Hogwarts-coder10/GlassBox-ML" target="_blank" rel="noopener">Hogwarts-coder10/GlassBox-ML</a></li>
+        <li>PyPI: <a href="https://pypi.org/project/glassboxml/" target="_blank" rel="noopener">glassboxml</a></li>
+      </ul>
+
+      <h2>Conclusion</h2>
+      <p>Building GlassBoxML reaffirmed for me:</p>
+      <blockquote>The best way to understand an abstraction is to remove it.</blockquote>
+      <p>I didn't create GlassBoxML because the world needed another ML framework. I built it because I wanted to see through the abstraction.</p>
+      <p>I wanted to take the equations I'd been learning about, write code for them, bend them, break them, fix them, test them, and finally assemble them into something that actually worked.</p>
+      <p>At some point, a learning experiment turned into an actual piece of software. That's maybe the greatest reason I could've had for building it.</p>
+
+      <p class="also">Originally published on <a href="https://medium.com/@vsskartheek/why-i-built-glassboxml-790c4da4e490" target="_blank" rel="noopener">Medium ↗</a></p>
+    </article>
+  </main>
+
+  <footer>
+    <p>© <span id="year"></span> V SS Karthik · Built with plain HTML, CSS and JS</p>
+  </footer>
+
+  <script src="../script.js"></script>
+</body>
+</html>

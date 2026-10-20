@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>V SS Karthik · Systems, ML &amp; the Night Sky</title>
+  <meta name="description" content="Portfolio of V SS Karthik (Hogwarts-coder10): compilers, astronomy, ML/AI, deep learning and Python. Database internals, interpretable ML, and systems built from scratch.">
+  <meta property="og:title" content="V SS Karthik · Portfolio">
+  <meta property="og:description" content="Systems, ML interpretability, compilers and astronomy.">
+  <meta property="og:image" content="https://avatars.githubusercontent.com/u/178892370?v=4&s=400">
+  <link rel="icon" href="https://avatars.githubusercontent.com/u/178892370?v=4&s=64">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Apply saved or system theme before first paint to avoid a flash
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("theme"); } catch (e) {}
+      if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+</head>
+<body>
+  <canvas id="stars" aria-hidden="true"></canvas>
+
+  <header class="nav">
+    <a class="logo" href="#top">&lt;karthik/&gt;</a>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#projects">Projects</a>
+      <a href="#blog">Blog</a>
+      <a href="#interests">Interests</a>
+      <a href="#contact">Contact</a>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Toggle light/dark mode">☀️</button>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <img class="avatar" src="https://avatars.githubusercontent.com/u/178892370?v=4&s=300" alt="Karthik's GitHub avatar" width="120" height="120">
+      <p class="eyebrow">Hi, I'm</p>
+      <h1>V SS Karthik</h1>
+      <p class="typed"><span id="typed"></span><span class="cursor">▍</span></p>
+      <p class="lede">B.Tech CS (AI/ML) student who lives in the “how does this actually work?” phase. I build things from scratch, from write-ahead logs and skip lists to models that explain their own failures.</p>
+      <div class="cta">
+        <a class="btn primary" href="#projects">See my work</a>
+        <a class="btn" href="https://github.com/Hogwarts-coder10" target="_blank" rel="noopener">GitHub ↗</a>
+        <a class="btn" href="https://www.linkedin.com/in/vsskarthik/" target="_blank" rel="noopener">LinkedIn ↗</a>
+      </div>
+    </section>
+
+    <section id="about" class="reveal">
+      <h2><span>01</span> About</h2>
+      <div class="about-grid">
+        <p>I'm drawn to the layers underneath the tools we use every day: how a database survives a crash, how a hash map really behaves under load, why a model fails on the inputs it fails on. I like writing the thing myself first, then making it fast.</p>
+        <ul class="facts">
+          <li><b>Studying</b> B.Tech CS (AI/ML)</li>
+          <li><b>Most comfortable in</b> Python, then C</li>
+          <li><b>Based in</b> Telangana, India</li>
+          <li><b>Motto</b> “Low-level logic, high-level curiosity.”</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="projects" class="reveal">
+      <h2><span>02</span> Projects</h2>
+      <p class="sub">Selected work, all open source. Click a card to see the code.</p>
+
+      <h3 class="group">Systems</h3>
+      <div class="grid">
+        <a class="card" href="https://github.com/Hogwarts-coder10/CDSA" target="_blank" rel="noopener">
+          <div class="tags"><span>C</span><span>Data structures</span></div>
+          <h4>CDSA</h4>
+          <p>A zero-dependency, memory-safe C data structures library (Vector, HashMap, SkipList, ART, RingBuffer and more). It also powers a CPython extension for Kedis-Python's storage layer.</p>
+        </a>
+        <a class="card" href="https://github.com/Hogwarts-coder10/kedis-python" target="_blank" rel="noopener">
+          <div class="tags"><span>Python</span><span>asyncio</span><span>Networking</span></div>
+          <h4>kedis-python</h4>
+          <p>A Redis-inspired in-memory store with a custom binary wire protocol (KESP), asyncio networking, master-replica replication and optimistic-locking transactions (WATCH/UNWATCH).</p>
+        </a>
+        <a class="card" href="https://github.com/Hogwarts-coder10/Anchor-Med" target="_blank" rel="noopener">
+          <div class="tags"><span>Python</span><span>Electron</span><span>React</span></div>
+          <h4>Anchor-Med</h4>
+          <p>An offline-first, P2P medical inventory system built on a custom Python B-Tree engine with WAL-based crash recovery and an Electron/React frontend.</p>
+        </a>
+      </div>
+
+      <h3 class="group">ML &amp; Interpretability</h3>
+      <div class="grid two">
+        <a class="card" href="https://github.com/Hogwarts-coder10/GlassBox-ML" target="_blank" rel="noopener">
+          <div class="tags"><span>Python</span><span>NumPy</span><span>PyPI: glassboxml</span></div>
+          <h4>GlassBox-ML</h4>
+          <p>An educational, NumPy-only ML library that shows why a model behaves the way it does: loss history, gradients, assumption checks, failure modes and generalization estimates. Basis of a paper in progress.</p>
+        </a>
+        <a class="card" href="https://github.com/Hogwarts-coder10/GlassBox-DL" target="_blank" rel="noopener">
+          <div class="tags"><span>Python</span><span>Deep learning</span></div>
+          <h4>GlassBox-DL</h4>
+          <p>A model-agnostic deep learning interpretability library that extends the GlassBox philosophy to neural nets: saliency maps, Grad-CAM and activation probing.</p>
+        </a>
+      </div>
+    </section>
+
+    <section id="blog" class="reveal">
+      <h2><span>03</span> Blog</h2>
+      <p class="sub">Notes on building things from scratch and what I learn along the way.</p>
+      <div class="posts">
+        <!-- To add a post: copy this whole <a class="post"> block, edit it, and put the newest first. -->
+        <a class="post" href="blog/glassboxml.html">
+          <div class="post-meta">
+            <time datetime="2026-10-05">Oct 5, 2026</time>
+            <span>·</span>
+            <span>5 min read</span>
+          </div>
+          <h4>Why I Built GlassBoxML?</h4>
+          <p>I wanted to understand what really happens inside <code>model.fit()</code>: how gradient descent updates weights, how a decision tree picks its splits. So I rebuilt the algorithms on plain NumPy. The math turned out to be the easy part; API design, validation, numerical stability, testing and packaging were the real work. “The best way to understand an abstraction is to remove it.”</p>
+          <div class="tags"><span>Python</span><span>Machine Learning</span><span>NumPy</span><span>Software Engineering</span></div>
+          <span class="read">Read post →</span>
+        </a>
+      </div>
+    </section>
+
+    <section id="interests" class="reveal">
+      <h2><span>04</span> Interests</h2>
+      <div class="grid four">
+        <div class="tile">
+          <div class="icon">⚙️</div>
+          <h4>Compilers</h4>
+          <p>Lexers, parsers, IRs and code generation. The same “build it to understand it” itch, applied to languages.</p>
+        </div>
+        <div class="tile">
+          <div class="icon">🔭</div>
+          <h4>Astronomy</h4>
+          <p>Looking up, and wondering how we know what we know about things that far away.</p>
+        </div>
+        <div class="tile">
+          <div class="icon">🧠</div>
+          <h4>ML / AI &amp; DL</h4>
+          <p>Not just training models, but opening them up: interpretability, failure modes, learning theory.</p>
+        </div>
+        <div class="tile">
+          <div class="icon">🐍</div>
+          <h4>Python</h4>
+          <p>My daily driver, from asyncio servers to NumPy-from-scratch learning libraries.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="stack" class="reveal">
+      <h2><span>05</span> Stack</h2>
+      <div class="chips">
+        <span>Python</span><span>C</span><span>NumPy</span><span>asyncio</span><span>JavaScript</span><span>React</span><span>Electron</span><span>Git &amp; GitHub</span>
+      </div>
+    </section>
+
+    <section id="contact" class="reveal">
+      <h2><span>06</span> Contact</h2>
+      <p class="sub">Want to talk systems, ML interpretability, compilers or the night sky? Get in touch.</p>
+      <div class="cta">
+        <a class="btn primary" href="mailto:vsskartheek@gmail.com">Email me</a>
+        <a class="btn" href="https://www.linkedin.com/in/vsskarthik/" target="_blank" rel="noopener">LinkedIn ↗</a>
+        <a class="btn" href="https://github.com/Hogwarts-coder10" target="_blank" rel="noopener">GitHub ↗</a>
+        <a class="btn" href="https://leetcode.com/TheAncientCoder7079" target="_blank" rel="noopener">LeetCode ↗</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© <span id="year"></span> V SS Karthik · Built with plain HTML, CSS and JS</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
